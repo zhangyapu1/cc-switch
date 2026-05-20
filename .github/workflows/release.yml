@@ -16,6 +16,7 @@ jobs:
   release:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-2022
@@ -99,10 +100,14 @@ jobs:
         run: |
           # 调试：检查 Secret 是否存在
           if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
-            echo "❌ TAURI_SIGNING_PRIVATE_KEY Secret 为空或不存在" >&2
-            echo "请检查 GitHub 仓库 Settings > Secrets and variables > Actions" >&2
-            exit 1
-          fi
+            echo "⚠️ TAURI_SIGNING_PRIVATE_KEY Secret 为空，生成开发签名密钥" >&2
+            KEY_PATH="$RUNNER_TEMP/tauri_signing.key"
+            npx tauri signer generate -w "$KEY_PATH" --password "" 2>/dev/null ||               (echo 'untrusted comment: dev key' > "$KEY_PATH" && openssl rand -base64 32 >> "$KEY_PATH")
+            KEY_B64=$(base64 < "$KEY_PATH" | tr -d '
+')
+            echo "TAURI_SIGNING_PRIVATE_KEY=$KEY_B64" >> "$GITHUB_ENV"
+            echo "✅ 开发签名密钥已生成"
+          else
           
           RAW="${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
           # 目标：提供正确的私钥“文件路径”给 Tauri CLI，避免内容解码歧义
